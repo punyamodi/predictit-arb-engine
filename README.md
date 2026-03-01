@@ -1,38 +1,74 @@
 # PredictIt Arbitrage Engine
 
-## Summary
-Automates the "Buy All NO" arbitrage strategy for PredictIt. Targets mutually exclusive markets (e.g., elections) where buying "NO" on all candidates guarantees profit if the total cost is low enough. Uses Linear Programming to optimize trade quantities, accounting for the 10% profit fee and $850 limits.
-
-## Setup & Run
-1. **Install**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Run Demo** (Live Data):
-   ```bash
-   python run_demo.py
-   ```
-   ```
-   *Note: If no arbitrage is found, the script lists "near miss" markets.*
-
-3. **Reproduce Run** (Sample Data):
-   ```bash
-   python reproduce_run.py
-   ```
+A Python engine that scans [PredictIt](https://www.predictit.org) markets for risk-free arbitrage opportunities using linear programming.
 
 ## Strategy
-- **Concept**: In a winner-take-all market with N candidates, exactly one wins.
-- **Action**: Buy "NO" on ALL candidates.
-- **Outcome**: You lose on the winner (pays $0) but win on N-1 losers (pay $1).
-- **Math**: Profit = (Revenue from N-1 winners) - (Total Investment).
-- **Optimization**: We solve for quantities $q_i$ to maximize min-profit across all outcomes.
+
+In a mutually exclusive market with N candidates, exactly one wins. Buying "NO" on every candidate guarantees a payout from N-1 losing contracts. When the total cost of the NO portfolio is low enough, the net payout after fees exceeds the investment regardless of the outcome.
+
+The engine solves for the optimal share quantities using **linear programming** (via PuLP), then performs an integer search over scaled solutions to find the highest-ROI trade that fits within the position limit.
+
+**Fee model**: PredictIt charges 10% on profits. Net payout per share = `1 - 0.10 * (1 - price)`.
+
+## Setup
+
+```bash
+pip install -r requirements.txt
+```
+
+## Usage
+
+**Live market scan:**
+
+```bash
+python main.py
+```
+
+**Offline demo (no network required):**
+
+```bash
+python demo.py
+```
+
+**CLI options:**
+
+```
+--fee RATE          Platform fee rate (default: 0.10)
+--budget USD        Max investment budget in dollars (default: 850)
+--limit N           Opportunities to display (default: 10)
+--near-misses N     Near-miss markets when no opportunities found (default: 5)
+--export-json PATH  Export results to JSON
+--export-csv PATH   Export results to CSV
+--no-cache          Bypass in-memory API response cache
+--timeout SECS      API request timeout (default: 30)
+--retries N         Max API retry attempts (default: 3)
+--log-level LEVEL   DEBUG | INFO | WARNING | ERROR (default: WARNING)
+```
+
+**Examples:**
+
+```bash
+python main.py --budget 500 --fee 0.10 --export-json results.json
+python main.py --log-level INFO --near-misses 10
+```
+
+## Project Structure
+
+```
+predictit_arbitrage/
+    config.py     Configuration dataclass
+    models.py     Typed data models
+    data.py       API client with retry and caching
+    engine.py     LP solver and integer search
+    analysis.py   Near-miss analysis and market statistics
+    reporter.py   Console, JSON and CSV output
+main.py           CLI entry point
+demo.py           Offline demo with sample data
+```
 
 ## Limitations
-- **Fees**: 10% profit fee significantly reduces margins.
-- **Execution**: Manual execution required (TOS compliance). Prices may slip.
-- **Capital**: Requires buying multiple contracts simultaneously.
 
-## Files
-- `arbitrage_engine.py`: Core LP optimization logic.
-- `fetch_data.py`: PredictIt API handler.
-- `run_demo.py`: Main execution script.
+- PredictIt's 10% fee significantly compresses margins; genuine arbitrage is rare.
+- Trade execution is manual; prices may move between scan and placement.
+- PredictIt imposes a $850 position limit per contract.
+
